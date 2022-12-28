@@ -2,7 +2,6 @@ use std::{f32::consts::PI, path::Path};
 
 use image::{ImageResult, Rgb, RgbImage};
 use itertools::Itertools;
-use log::info;
 use parry3d::{
     math::{Isometry, Point, Vector},
     query::Ray,
@@ -38,7 +37,7 @@ impl Camera {
         let direction = self.isometry * Vector::new(0.0, 0.0, 1.0);
 
         let pixel_length = 2.0 / width as f32 * (self.fov / 2.0).tan();
-        let img_x = self.isometry * Vector::new(pixel_length, 0.0, 0.0);
+        let img_x = self.isometry * Vector::new(-pixel_length, 0.0, 0.0);
         let img_y = self.isometry * Vector::new(0.0, pixel_length, 0.0);
 
         let xs = (0..width).map(|val| val as f32 - width as f32 / 2.0);
@@ -52,9 +51,7 @@ impl Camera {
 
 impl Camera {
     pub fn save_img(&self, path: impl AsRef<Path>) -> ImageResult<()> {
-        self.image.save(path)?;
-        info!("image saved succesfully");
-        Ok(())
+        self.image.save(path)
     }
 
     pub fn width(&self) -> u32 {

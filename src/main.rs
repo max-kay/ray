@@ -1,88 +1,118 @@
-use std::f32::consts::PI;
-
-use parry3d::math::Point;
+use parry3d::math::{Point, Vector};
+use parry3d::shape::Cuboid;
 use parry3d::{math::Isometry, shape::Ball};
 use ray::camera::Camera;
-use ray::materials::Material;
-use ray::objects::{Object, Scene};
+use ray::objects::{Brdf, Object, Scene, Shape};
+use std::f32::consts::PI;
+#[allow(dead_code, unused_variables, unused_mut)]
 
 fn main() {
-    tracing_subscriber::fmt::init();
     let mut axes = vec![
         Object {
-            shape: Ball { radius: 1.0 },
+            shape: Shape::Ball(Ball { radius: 1.0 }),
             isometry: Isometry::translation(0.0, 0.0, 0.0),
-            material: Material::new_light((0.5, 0.8, 0.2).into()),
+            brdf: Brdf::One,
+            color: (0.8, 0.8, 0.8).into(),
+            is_light_source: false,
         },
         Object {
-            shape: Ball { radius: 1.0 },
+            shape: Shape::Ball(Ball { radius: 1.0 }),
             isometry: Isometry::translation(4.0, 0.0, 0.0),
-            material: Material::new_light((0.5, 0.8, 0.2).into()),
+            brdf: Brdf::One,
+            color: (1.0, 0.0, 0.0).into(),
+            is_light_source: false,
         },
         Object {
-            shape: Ball { radius: 1.0 },
+            shape: Shape::Ball(Ball { radius: 1.0 }),
             isometry: Isometry::translation(0.0, 4.0, 0.0),
-            material: Material::new_light((0.5, 0.8, 0.2).into()),
+            brdf: Brdf::One,
+            color: (0.0, 1.0, 0.0).into(),
+            is_light_source: false,
         },
         Object {
-            shape: Ball { radius: 1.0 },
+            shape: Shape::Ball(Ball { radius: 1.0 }),
             isometry: Isometry::translation(0.0, 0.0, 4.0),
-            material: Material::new_light((0.5, 0.8, 0.2).into()),
+            brdf: Brdf::One,
+            color: (0.0, 0.0, 1.0).into(),
+            is_light_source: false,
         },
         Object {
-            shape: Ball { radius: 1.0 },
+            shape: Shape::Ball(Ball { radius: 1.0 }),
             isometry: Isometry::translation(0.0, 0.0, 8.0),
-            material: Material::new_light((0.5, 0.8, 0.2).into()),
+            brdf: Brdf::One,
+            color: (0.5, 0.8, 0.2).into(),
+            is_light_source: false,
         },
     ];
 
     let mut objects = vec![
         Object {
-            shape: Ball { radius: 3.0 },
+            shape: Shape::Ball(Ball { radius: 3.0 }),
             isometry: Isometry::translation(0.0, 0.0, 0.0),
-            material: Material::new_lambertian((0.9, 0.8, 0.2).into()),
+            brdf: Brdf::One,
+            color: (0.9, 0.8, 0.2).into(),
+            is_light_source: false,
         },
         Object {
-            shape: Ball { radius: 3.0 },
+            shape: Shape::Ball(Ball { radius: 3.0 }),
             isometry: Isometry::translation(10.0, 0.0, 0.0),
-            material: Material::new_lambertian((0.1, 0.8, 0.9).into()),
+            brdf: Brdf::One,
+            color: (0.1, 0.8, 0.9).into(),
+            is_light_source: false,
         },
         Object {
-            shape: Ball { radius: 3.0 },
+            shape: Shape::Ball(Ball { radius: 3.0 }),
             isometry: Isometry::translation(5.0, 3.0, 11.0),
-            material: Material::new_lambertian((0.8, 0.1, 0.8).into()),
+            brdf: Brdf::One,
+            color: (0.8, 0.1, 0.8).into(),
+            is_light_source: false,
         },
         Object {
-            shape: Ball { radius: 3.0 },
+            shape: Shape::Ball(Ball { radius: 3.0 }),
             isometry: Isometry::translation(5.0, 3.0, -8.0),
-            material: Material::new_lambertian((0.8, 0.2, 0.8).into()),
-        },
-        Object {
-            shape: Ball { radius: 10.0 },
-            isometry: Isometry::translation(10.0, 0.0, 40.0),
-            material: Material::new_light((0.7, 1.0, 1.0).into()),
-        },
-        Object {
-            shape: Ball { radius: 12.0 },
-            isometry: Isometry::translation(0.0, 40.0, -30.0),
-            material: Material::new_light((1.0, 0.8, 0.6).into()),
+            brdf: Brdf::One,
+            color: (0.8, 0.2, 0.8).into(),
+            is_light_source: false,
         },
     ];
 
-    // objects.append(&mut axes);
+    let mut lights = vec![
+        Object {
+            shape: Shape::Ball(Ball { radius: 10.0 }),
+            isometry: Isometry::translation(10.0, 0.0, 40.0),
+            brdf: Brdf::One,
+            color: (10.0, 15.0, 15.0).into(),
+            is_light_source: true,
+        },
+        Object {
+            shape: Shape::Ball(Ball { radius: 12.0 }),
+            isometry: Isometry::translation(0.0, 40.0, -30.0),
+            brdf: Brdf::One,
+            color: (15.0, 12.0, 10.0).into(),
+            is_light_source: true,
+        },
+    ];
 
-    let scene = Scene::new(objects, (0.0, 0.0, 0.0).into());
-    let width = 640;
-    let height = 960;
+    lights.append(&mut axes);
+
+    lights.push(Object {
+        shape: Shape::Cuboid(Cuboid::new(Vector::new(8.0, 8.0, 8.0))),
+        isometry: Isometry::translation(0.0, 0.0, -9.0),
+        brdf: Brdf::One,
+        color: (0.8, 0.8, 0.8).into(),
+        is_light_source: false,
+    });
+
+    let scene = Scene::new(lights, (0.0, 0.0, 0.0).into());
     let mut camera = Camera::face_towards(
         Point::new(20.0, 20.0, 20.0),
-        Point::new(3.0, 0.0, 2.5),
+        Point::new(0.0, 0.0, 0.0),
         PI / 4.0,
-        width,
-        height,
+        400,
+        350,
     );
 
-    scene.render(&mut camera, (width * height) as usize / 14, 3, 500);
+    scene.render(&mut camera, 3, 200);
 
     camera.save_img("./out/out.png").unwrap();
 }
