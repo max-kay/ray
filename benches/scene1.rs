@@ -8,7 +8,7 @@ use ray::{
     camera::Camera,
     objects::{Brdf, Object, Scene, Shape},
 };
-use std::f32::consts::PI;
+use std::f32::consts::TAU;
 
 fn render(rays: usize, reflections: usize) {
     let mut axes = vec![
@@ -84,7 +84,7 @@ fn render(rays: usize, reflections: usize) {
     let mut camera = Camera::face_towards(
         Point::new(20.0, 20.0, 20.0),
         Point::new(0.0, 0.0, 0.0),
-        PI / 4.0,
+        TAU / 8.0,
         400,
         400,
     );

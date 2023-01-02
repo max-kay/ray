@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, path::Path};
+use std::{f32::consts::TAU, path::Path};
 
 use image::{ImageResult, Rgb, RgbImage};
 use itertools::Itertools;
@@ -68,7 +68,7 @@ impl Default for Camera {
         Self::face_towards(
             Point::new(10.0, 5.0, 8.0),
             Point::new(0.0, 0.0, 0.0),
-            PI / 3.0,
+            TAU / 6.0,
             100,
             100,
         )

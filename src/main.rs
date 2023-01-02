@@ -2,7 +2,7 @@ use parry3d::math::Point;
 use parry3d::{math::Isometry, shape::Ball};
 use ray::camera::Camera;
 use ray::objects::{Brdf, Object, Scene, Shape};
-use std::f32::consts::PI;
+use std::f32::consts::TAU;
 
 fn main() {
     let mut objects = vec![
@@ -59,7 +59,7 @@ fn main() {
     let mut camera = Camera::face_towards(
         Point::new(20.0, 20.0, 20.0),
         Point::new(4.0, 0.0, 3.0),
-        PI / 4.0,
+        TAU / 8.0,
         1600,
         2400,
     );

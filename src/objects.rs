@@ -53,7 +53,7 @@ impl Scene {
                     -intersection.normal.angle(&Vector::z()),
                 );
                 for _ in 0..rays {
-                    let out_going = direction_transform * utils::rand_unit_vec();
+                    let out_going = direction_transform * utils::rand_unit_vec_pos_z();
                     let new_ray = Ray::new(intersection_point, out_going);
                     let factor = object.brdf(ray.dir, out_going, intersection.normal)
                         * (intersection.normal.dot(&out_going));
