@@ -5,7 +5,7 @@ use nalgebra::{Rotation3, UnitVector3};
 use parry3d::{
     math::{Isometry, Real, Vector},
     query::{Ray, RayCast, RayIntersection},
-    shape::{Ball, Cuboid},
+    shape::{Ball, Capsule, Cuboid, RoundCuboid},
 };
 use rayon::prelude::*;
 use std::ops::{Add, AddAssign, Mul};
@@ -13,33 +13,34 @@ use std::ops::{Add, AddAssign, Mul};
 #[derive(Default)]
 pub struct Scene {
     objects: Vec<Object>,
-    background: Color,
 }
 
 impl Scene {
-    pub fn new(objects: Vec<Object>, background: Color) -> Self {
-        Self {
-            objects,
-            background,
-        }
+    pub fn new(objects: Vec<Object>) -> Self {
+        Self { objects }
     }
 
-    pub fn render(&self, camera: &mut Camera, recursion: usize, reflections: usize) {
+    pub fn render_with_progress(&self, camera: &mut Camera, rays: usize, max_reflections: usize) {
         camera
             .get_rays()
             .into_par_iter()
             .progress()
-            .for_each(|(ray, color)| {
-                *color = self.render_pixel(&ray, recursion, reflections).into()
-            });
+            .for_each(|(ray, color)| *color = self.render_ray(&ray, rays, max_reflections).into());
     }
 
-    fn render_pixel(&self, ray: &Ray, iteration: usize, reflections: usize) -> Color {
-        if iteration == 0 {
-            return self.background;
+    pub fn render(&self, camera: &mut Camera, rays: usize, max_reflections: usize) {
+        camera
+            .get_rays()
+            .into_par_iter()
+            .for_each(|(ray, color)| *color = self.render_ray(&ray, rays, max_reflections).into());
+    }
+
+    fn render_ray(&self, ray: &Ray, rays: usize, max_reflections: usize) -> Color {
+        if max_reflections == 0 {
+            return (0.0, 0.0, 0.0).into();
         }
         match self.closest_intersection(ray) {
-            None => self.background,
+            None => (0.0, 0.0, 0.0).into(),
             Some((idx, intersection)) => {
                 let object = &self.objects[idx];
                 let intersection_point = ray.point_at(intersection.toi);
@@ -47,19 +48,19 @@ impl Scene {
                     return object.color;
                 }
                 let mut color: Color = (0.0, 0.0, 0.0).into();
-                let m = Rotation3::from_axis_angle(
+                let direction_transform = Rotation3::from_axis_angle(
                     &UnitVector3::<f32>::new_normalize(intersection.normal.cross(&Vector::z())),
                     -intersection.normal.angle(&Vector::z()),
                 );
-                for _ in 0..reflections {
-                    let out_going = m * utils::rand_unit_vec();
+                for _ in 0..rays {
+                    let out_going = direction_transform * utils::rand_unit_vec();
                     let new_ray = Ray::new(intersection_point, out_going);
-                    let factor = object.brdf.apply(ray.dir, out_going, intersection.normal)
+                    let factor = object.brdf(ray.dir, out_going, intersection.normal)
                         * (intersection.normal.dot(&out_going));
                     color += object.color.scale(factor)
-                        * self.render_pixel(&new_ray, iteration - 1, reflections);
+                        * self.render_ray(&new_ray, 1, max_reflections - 1);
                 }
-                color.scale(1.0 / reflections as f32)
+                color.scale(1.0 / rays as f32)
             }
         }
     }
@@ -95,11 +96,17 @@ impl Object {
     pub fn get_intersection(&self, ray: &Ray) -> Option<RayIntersection> {
         self.shape.cast_ray_and_get_normal(&self.isometry, ray)
     }
+
+    fn brdf(&self, in_coming: Vector<f32>, out_going: Vector<f32>, normal: Vector<f32>) -> f32 {
+        self.brdf.apply(in_coming, out_going)
+    }
 }
 
 pub enum Shape {
     Ball(Ball),
     Cuboid(Cuboid),
+    Capsule(Capsule),
+    RoundCuboid(RoundCuboid),
 }
 
 impl Shape {
@@ -111,18 +118,33 @@ impl Shape {
         match self {
             Shape::Ball(ball) => ball.cast_ray_and_get_normal(isometry, ray, Real::MAX, true),
             Shape::Cuboid(cuboid) => cuboid.cast_ray_and_get_normal(isometry, ray, Real::MAX, true),
+            Shape::Capsule(capsule) => {
+                capsule.cast_ray_and_get_normal(isometry, ray, Real::MAX, true)
+            }
+            Shape::RoundCuboid(cuboid) => {
+                cuboid.cast_ray_and_get_normal(isometry, ray, Real::MAX, true)
+            }
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum Brdf {
+    Diffuse,
+    Mirror,
+    Glossy,
+    #[default]
     One,
 }
 
 impl Brdf {
-    pub fn apply(&self, incident: Vector<f32>, out_going: Vector<f32>, normal: Vector<f32>) -> f32 {
+    /// computes the given brdf
+    /// fullfills po
+    fn apply(&self, in_comming: Vector<f32>, out_going: Vector<f32>) -> f32 {
         match self {
+            Brdf::Diffuse => todo!(),
+            Brdf::Mirror => todo!(),
+            Brdf::Glossy => todo!(),
             Brdf::One => 1.0,
         }
     }
