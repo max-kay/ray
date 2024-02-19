@@ -1,11 +1,11 @@
 use crate::{camera::Camera, utils};
 use image::Rgb;
-use indicatif::ParallelProgressIterator;
+use indicatif::{ParallelProgressIterator, ProgressIterator};
 use nalgebra::{Rotation3, UnitVector3};
 use parry3d::{
     math::{Isometry, Real, Vector},
     query::{Ray, RayCast, RayIntersection},
-    shape::{Ball, Capsule, Cuboid, RoundCuboid},
+    shape::{Ball, Capsule, Cuboid, HalfSpace, RoundCuboid},
 };
 use rayon::prelude::*;
 use std::ops::{Add, AddAssign, Mul};
@@ -13,14 +13,32 @@ use std::ops::{Add, AddAssign, Mul};
 #[derive(Default)]
 pub struct Scene {
     objects: Vec<Object>,
+    background: Color,
 }
 
 impl Scene {
-    pub fn new(objects: Vec<Object>) -> Self {
-        Self { objects }
+    pub fn new(background: Color) -> Self {
+        Self {
+            background,
+            objects: Vec::new(),
+        }
     }
 
-    pub fn render_with_progress(&self, camera: &mut Camera, rays: usize, max_reflections: usize) {
+    pub fn add_objects(mut self, mut objects: Vec<Object>) -> Self {
+        self.objects.append(&mut objects);
+        self
+    }
+    pub fn add_object(mut self, objects: Object) -> Self {
+        self.objects.push(objects);
+        self
+    }
+
+    pub fn render_par_with_progress(
+        &self,
+        camera: &mut Camera,
+        rays: usize,
+        max_reflections: usize,
+    ) {
         camera
             .get_rays()
             .into_par_iter()
@@ -28,26 +46,41 @@ impl Scene {
             .for_each(|(ray, color)| *color = self.render_ray(&ray, rays, max_reflections).into());
     }
 
-    pub fn render(&self, camera: &mut Camera, rays: usize, max_reflections: usize) {
+    pub fn render_with_progress(&self, camera: &mut Camera, rays: usize, max_reflections: usize) {
+        camera
+            .get_rays()
+            .into_iter()
+            .progress()
+            .for_each(|(ray, color)| *color = self.render_ray(&ray, rays, max_reflections).into());
+    }
+
+    pub fn render_par(&self, camera: &mut Camera, rays: usize, max_reflections: usize) {
         camera
             .get_rays()
             .into_par_iter()
             .for_each(|(ray, color)| *color = self.render_ray(&ray, rays, max_reflections).into());
     }
 
+    pub fn render(&self, camera: &mut Camera, rays: usize, max_reflections: usize) {
+        camera
+            .get_rays()
+            .into_iter()
+            .for_each(|(ray, color)| *color = self.render_ray(&ray, rays, max_reflections).into());
+    }
+
     fn render_ray(&self, ray: &Ray, rays: usize, max_reflections: usize) -> Color {
         if max_reflections == 0 {
-            return (0.0, 0.0, 0.0).into();
+            return self.background;
         }
         match self.closest_intersection(ray) {
-            None => (0.0, 0.0, 0.0).into(),
+            None => self.background,
             Some((idx, intersection)) => {
                 let object = &self.objects[idx];
                 let intersection_point = ray.point_at(intersection.toi);
                 if object.is_light_source {
                     return object.color;
                 }
-                let mut color: Color = (0.0, 0.0, 0.0).into();
+                let mut color = Color(0.0, 0.0, 0.0);
                 let direction_transform = Rotation3::from_axis_angle(
                     &UnitVector3::<f32>::new_normalize(intersection.normal.cross(&Vector::z())),
                     -intersection.normal.angle(&Vector::z()),
@@ -107,6 +140,7 @@ pub enum Shape {
     Cuboid(Cuboid),
     Capsule(Capsule),
     RoundCuboid(RoundCuboid),
+    HalfSpace(HalfSpace),
 }
 
 impl Shape {
@@ -123,6 +157,9 @@ impl Shape {
             }
             Shape::RoundCuboid(cuboid) => {
                 cuboid.cast_ray_and_get_normal(isometry, ray, Real::MAX, true)
+            }
+            Shape::HalfSpace(half_space) => {
+                half_space.cast_ray_and_get_normal(isometry, ray, Real::MAX, true)
             }
         }
     }
@@ -151,21 +188,13 @@ impl Brdf {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct Color {
-    r: f32,
-    g: f32,
-    b: f32,
-}
+pub struct Color(pub f32, pub f32, pub f32);
 
 impl Mul for Color {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            r: self.r * rhs.r,
-            g: self.g * rhs.g,
-            b: self.b * rhs.b,
-        }
+        Self(self.0 * rhs.0, self.1 * rhs.1, self.2 * rhs.2)
     }
 }
 
@@ -173,48 +202,30 @@ impl Add for Color {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            r: self.r + rhs.r,
-            g: self.g + rhs.g,
-            b: self.b + rhs.b,
-        }
+        Self(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
     }
 }
 
 impl AddAssign for Color {
     fn add_assign(&mut self, rhs: Self) {
-        self.r += rhs.r;
-        self.g += rhs.g;
-        self.b += rhs.b;
+        self.0 += rhs.0;
+        self.1 += rhs.1;
+        self.2 += rhs.2;
     }
 }
 
 impl Color {
     pub fn scale(&self, factor: f32) -> Self {
-        Self {
-            r: self.r * factor,
-            g: self.g * factor,
-            b: self.b * factor,
-        }
+        Self(self.0 * factor, self.1 * factor, self.2 * factor)
     }
 }
 
 impl From<Color> for Rgb<u8> {
     fn from(value: Color) -> Self {
         Self([
-            (value.r * u8::MAX as f32) as u8,
-            (value.g * u8::MAX as f32) as u8,
-            (value.b * u8::MAX as f32) as u8,
+            (value.0 * u8::MAX as f32) as u8,
+            (value.1 * u8::MAX as f32) as u8,
+            (value.2 * u8::MAX as f32) as u8,
         ])
-    }
-}
-
-impl From<(f32, f32, f32)> for Color {
-    fn from(color: (f32, f32, f32)) -> Self {
-        Self {
-            r: color.0,
-            g: color.1,
-            b: color.2,
-        }
     }
 }

@@ -1,6 +1,6 @@
 use std::{f32::consts::TAU, path::Path};
 
-use image::{ImageResult, Rgb, RgbImage};
+use image::{ImageResult, Rgb, RgbImage, imageops::blur};
 use itertools::Itertools;
 use parry3d::{
     math::{Isometry, Point, Vector},
@@ -46,6 +46,10 @@ impl Camera {
             .map(|(y, x)| Ray::new(eye, (direction + img_x * x + img_y * y).normalize()))
             .zip(self.image.pixels_mut())
             .collect()
+    }
+
+    pub fn apply_blur(&mut self, sigma: f32) {
+        self.image = blur(&self.image, sigma)
     }
 }
 

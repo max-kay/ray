@@ -14,9 +14,15 @@ parry3d = "0.12.0"
 rand = "0.8.5"
 rayon = "1.6.1"
 
-[dev-dependencies]
-criterion = "0.4"
 
 [[bench]]
 name = "scene1"
+harness = false
+
+[[bench]]
+name = "scene2"
+harness = false
+
+[[bench]]
+name = "scene3"
 harness = false
